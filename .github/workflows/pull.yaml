@@ -1,4 +1,4 @@
-name: "Infrastructure Deployment - Harper Collins HECTR"
+name: "Infrastructure Deployment"
 on:
   workflow_dispatch:
     inputs:
