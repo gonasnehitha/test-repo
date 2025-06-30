@@ -35,24 +35,17 @@ jobs:
       ACCOUNT_ID: ${{ inputs.environment == 'dev' && '1234567890' || inputs.environment == 'prod' && '0987654321' }}
 
     steps:
+
+      - name: checkout-branch
+        uses: actions/checkout@v2
+        
       - name: Echo Workflow Parameters
         run: |
           echo "Environment: ${{inputs.environment}}"
           echo "Account ID: ${{ env.ACCOUNT_ID }}"
           echo "Terraform run operation: ${{ inputs.terraform_option }}"
           echo "Branch Name: ${{ github.ref_name }}"
-
-      - name: configure-aws-credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/nct-aws-github-oidc-role
-          role-session-name: terraform-hectr
-          role-duration-seconds: 3600
-          aws-region: us-east-1 #check and update region
-
-      - name: checkout-branch
-        uses: actions/checkout@v2
-      
+          
       - name: setup terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -74,7 +67,7 @@ jobs:
         timeout-minutes: 30
         with:
          secret:  ${{ secrets.GITHUB_TOKEN }}
-         approvers: 
+         approvers: test
          minimum-approvals: 1
          exclude-workflow-initiator-as-approver: false
          issue-title: "Executing terraform ${{ inputs.terraform_option }} on ${{ inputs.environment }}"
