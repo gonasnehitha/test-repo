@@ -1,0 +1,59 @@
+name: "Run terraform plan - HarperCollins HECTR"
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform_plan:
+    name: terraform_plan
+    runs-on: [add_runner_label_name]
+    defaults:
+      run:
+        working-directory: tf/matrix.environment
+
+    strategy:
+      matrix:
+        environment: [dev, prod]
+      fail-fast: false
+    
+    env:
+      ACCOUNT_ID: ${{ matrix.environment == 'dev' && '1234567890' || matrix.environment == 'prod' && '0987654321' }}
+
+    steps:
+      - name: Echo Workflow Parameters
+        run: |
+          echo "Environment: ${{matrix.environment}}"
+          echo "Working Directory: ${{ env.WORKING_DIR}}"
+          echo "Account ID: ${{ env.ACCOUNT_ID }}"
+          echo "Branch Name: ${{ github.ref_name }}"
+
+      - name: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/nct-aws-github-oidc-role
+          role-session-name: terraform-plan-hectr
+          role-duration-seconds: 3600
+          aws-region: us-east-1
+      
+      - name: checkout-branch
+        uses: actions/checkout@v2
+      
+      - name: setup terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+        
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform fmt
+        run: terraform fmt -check -diff
+        continue-on-error: true
+
+      - name: Terraform plan
+        run: terraform plan
