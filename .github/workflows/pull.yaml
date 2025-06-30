@@ -28,7 +28,7 @@ jobs:
     runs-on: [ubuntu-latest] ## Need to add label here
     defaults:
       run:
-        working-directory: tf/inputs.environment
+        working-directory: tf/${{ inputs.environment }}
 
 # Sample values are added here, need to update
     env:
