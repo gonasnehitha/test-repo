@@ -1,0 +1,85 @@
+name: "Infrastructure Deployment - Harper Collins HECTR"
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        default: 'dev'
+        description: "Select the environment:"
+        options:
+          - dev
+          - prod
+      terraform_option:
+        type: choice
+        default: 'apply'
+        description: "Select the terraform operation"
+        options:
+          - plan
+          - apply
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: [add_runners_label] ## Need to add label here
+    defaults:
+      run:
+        working-directory: tf/inputs.environment
+
+# Sample values are added here, need to update
+    env:
+      ACCOUNT_ID: ${{ inputs.environment == 'dev' && '1234567890' || inputs.environment == 'prod' && '0987654321' }}
+
+    steps:
+      - name: Echo Workflow Parameters
+        run: |
+          echo "Environment: ${{inputs.environment}}"
+          echo "Account ID: ${{ env.ACCOUNT_ID }}"
+          echo "Terraform run operation: ${{ inputs.terraform_option }}"
+          echo "Branch Name: ${{ github.ref_name }}"
+
+      - name: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/nct-aws-github-oidc-role
+          role-session-name: terraform-hectr
+          role-duration-seconds: 3600
+          aws-region: us-east-1 #check and update region
+
+      - name: checkout-branch
+        uses: actions/checkout@v2
+      
+      - name: setup terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+        
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        if: ${{ (inputs.terraform_option == 'plan' || inputs.terraform_option == 'apply') }}
+        run: terraform plan -input=false
+
+      # Approval keywords - "approve", "approved", "yes"
+      # Denied keywords - "deny", "denied", "no"
+
+      - name: Waiting for approval
+        if: ${{ inputs.terraform_option == 'apply' || inputs.environment == 'prod'  }}
+        uses: trstringer/manual-approval@v1
+        timeout-minutes: 30
+        with:
+         secret:  ${{ secrets.GITHUB_TOKEN }}
+         approvers: 
+         minimum-approvals: 1
+         exclude-workflow-initiator-as-approver: false
+         issue-title: "Executing terraform ${{ inputs.terraform_option }} on ${{ inputs.environment }}"
+         issue-body: "Please approve or deny the deployment ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Terraform Apply
+        if: ${{ (inputs.terraform_option == 'apply') }}
+        run: terraform apply -input=false -auto-approve
